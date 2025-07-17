@@ -1,12 +1,94 @@
 from flask import jsonify
 import pandas as pd
-from sampleEstimates import total_estimates, rse_estimates, getVarTable, getRSEestimates
+from sampleEstimates import total_estimates, rse_estimates, merge_sum, merge_sum_cols, getVarTable, getRSEestimates
 
 params = ['V1', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12',
           'V13', 'V14', 'V16', 'V17', 'V18', 'V20', 'V21', 'V22', 'V23', 'VA', 'VC11', 'VA1', 'VC111']
 
 
+def exportTables(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, sscode, multiplier):
+    try:
+        table_results = processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, sscode, multiplier)
+        return table_results
+    except Exception as e:
+        print(e)
+        return jsonify({"error": str(e)})
+
+
 def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, sscode, multiplier):
+    # Check for discrepancies in data
+    blk_dict = {
+        'blkA': blkA,
+        'blkB': blkB,
+        'blkC': blkC,
+        'blkD': blkD,
+        'blkE': blkE,
+        'blkF': blkF,
+        'blkG': blkG,
+        'blkH': blkH,
+        'blkI': blkI,
+        'blkJ': blkJ,
+    }
+
+    # 1. Check number of columns
+    expected_cols = {
+        'blkA': 22, 'blkB': 12, 'blkC': 15, 'blkD': 6, 'blkE': 10,
+        'blkF': 15, 'blkG': 15, 'blkH': 9, 'blkI': 9, 'blkJ': 15
+    }
+    for blk_name, expected in expected_cols.items():
+        actual = blk_dict[blk_name].shape[1]
+        if actual != expected:
+            raise Exception(f"{blk_name} should have {expected} columns, found {actual}")
+
+    # 2. Blocks A, B, F, G should not have duplicate DSL (3rd column)
+    for blk in ['blkA', 'blkB', 'blkF', 'blkG']:
+        dsl_col = blk_dict[blk].columns[2]
+        if blk_dict[blk][dsl_col].duplicated().any():
+            raise Exception(f"{blk} has duplicate DSL values in column '{dsl_col}'")
+
+    # 3. Multiplier must have exactly these columns
+    expected_mult_cols = {'state', 'distcode', 'sector', 'nic03', 'sstrm', 'mult1', 'mult2', 'mult3', 'mult4'}
+    if not expected_mult_cols.issubset(multiplier.columns):
+        raise Exception(f"Multiplier missing columns: {expected_mult_cols - set(multiplier.columns)}")
+
+    # 4. SScode must contain these columns
+    expected_ss_cols = {'dsl', 'sscode', 'bfe'}
+    if not expected_ss_cols.issubset(sscode.columns):
+        raise Exception(f"SScode missing columns: {expected_ss_cols - set(sscode.columns)}")
+
+    # 5. All blocks except blkA must have DSLs ⊆ blkA
+    dslA = set(blk_dict['blkA'].iloc[:, 2])
+    for blk in blk_dict:
+        if blk == 'blkA':
+            continue
+        dsl_other = set(blk_dict[blk].iloc[:, 2])
+        missing = dsl_other - dslA
+        if missing:
+            raise Exception(f"{blk} contains unknown DSLs not in blkA: {missing}")
+
+    print("All checks passed successfully.")
+
+    # Rename columns correctly
+
+    names_lists = [
+        ['yr', 'blk', 'a1', 'a2', 'a3', 'a4', 'a5', 'a7', 'a8', 'a9', 'a10', 'a11', 'a12', 'bonus', 'pf', 'welfare',
+         'mwdays', 'nwdays', 'wdays', 'costop', 'expshare', 'mult'],
+        ['yr', 'blk', 'ab01', 'b02', 'b03', 'b04', 'b05', 'b06f', 'b06t', 'b07', 'b08', 'b09'],
+        ['yr', 'blk'] + ['c' + str(i) for i in range(1, 14)],
+        ['yr', 'blk'] + ['d' + str(i) for i in range(1, 5)],
+        ['yr', 'blk'] + ['e' + str(i) for i in range(1, 9)],
+
+        ['yr', 'blk', 'af01', 'f1', 'f2a', 'f2b', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11'],
+        ['yr', 'blk', 'ag01', 'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12'],
+
+        ['yr', 'blk'] + ['h' + str(i) for i in range(1, 8)],
+        ['yr', 'blk'] + ['i' + str(i) for i in range(1, 8)],
+        ['yr', 'blk'] + ['j' + str(i) for i in range(1, 14)]
+    ]
+
+    for (key, df), colnames in zip(blk_dict.items(), names_lists):
+        df.columns = colnames
+
     # Drop unnecessary columns
     blkB = blkB.drop(columns=['yr', 'blk'])
     blkC = blkC.drop(columns=['yr', 'blk'])
@@ -18,46 +100,14 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
     blkI = blkI.drop(columns=['yr', 'blk'])
     blkJ = blkJ.drop(columns=['yr', 'blk'])
 
-    # Type convert
-    blkA['a11'] = blkA['a11'].astype('int64')
-    blkA['a12'] = blkA['a12'].astype('int64')
-    blkC['c_i1'] = blkC['c_i1'].astype('int64')
-    blkC['c_i5'] = blkC['c_i5'].astype('int64')
-    blkC['c_i7'] = blkC['c_i7'].astype('int64')
-    blkC['c_i9'] = blkC['c_i9'].astype('int64')
-    blkC['c_i13'] = blkC['c_i13'].astype('int64')
-    blkD['d_i1'] = blkD['d_i1'].astype('int64')
-    blkD['d_i4'] = blkD['d_i4'].astype('int64')
-    blkE['e_i1'] = blkE['e_i1'].astype('int64')
-    blkE['e_i6'] = blkE['e_i6'].astype('int64')
-    blkE['e_i8'] = blkE['e_i8'].astype('int64')
-    blkJ['j_i1'] = blkJ['j_i1'].astype('int64')
-    blkJ['j_i13'] = blkJ['j_i13'].astype('int64')
-
-    gcol = [1, 2, 3, 4, 6, 7, 8, 9, 10, 11]
-    for x in gcol:
-        blkG['g' + str(x)] = blkG['g' + str(x)].astype('int64')
-
-    blkH['h_i1'] = blkH['h_i1'].astype('int64')
-    blkH['h_i6'] = blkH['h_i6'].astype('int64')
-    blkI['i_i1'] = blkI['i_i1'].astype('int64')
-    blkI['i_i6'] = blkI['i_i6'].astype('int64')
-
-    fcol = [1, "2a", "2b", 3, 4, 6, 7, 8, 9, 10, 11]
-    for x in fcol:
-        blkF['f' + str(x)] = blkF['f' + str(x)].astype('int64')
-
-    for i in range(1, 5):
-        multiplier['mult' + str(i)] = multiplier['mult' + str(i)].astype('float64')
-
     # Keep Unit Status <= 4 only
-    resultC = pd.merge(blkC, blkA[['a1', 'a3', 'a12']], how='left', left_on='ac01', right_on='a1')
+    resultC = pd.merge(blkC, blkA[['a1', 'a3', 'a12']], how='left', left_on='c1', right_on='a1')
     blkC_all = resultC[resultC['a12'] <= 4].drop(columns=['a1', 'a3', 'a12'])
 
-    resultD = pd.merge(blkD, blkA[['a1', 'a3', 'a12']], how='left', left_on='ad01', right_on='a1')
+    resultD = pd.merge(blkD, blkA[['a1', 'a3', 'a12']], how='left', left_on='d1', right_on='a1')
     blkD_all = resultD[resultD['a12'] <= 4].drop(columns=['a1', 'a3', 'a12'])
 
-    resultE = pd.merge(blkE, blkA[['a1', 'a3', 'a12']], how='left', left_on='ae01', right_on='a1')
+    resultE = pd.merge(blkE, blkA[['a1', 'a3', 'a12']], how='left', left_on='e1', right_on='a1')
     blkE_all = resultE[resultE['a12'] <= 4].drop(columns=['a1', 'a3', 'a12'])
 
     resultF = pd.merge(blkF, blkA[['a1', 'a3', 'a12']], how='left', left_on='af01', right_on='a1')
@@ -66,22 +116,29 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
     resultG = pd.merge(blkG, blkA[['a1', 'a3', 'a12']], how='left', left_on='ag01', right_on='a1')
     blkG_all = resultG[resultG['a12'] <= 4].drop(columns=['a1', 'a3', 'a12'])
 
-    resultH = pd.merge(blkH, blkA[['a1', 'a3', 'a12']], how='left', left_on='ah01', right_on='a1')
+    resultH = pd.merge(blkH, blkA[['a1', 'a3', 'a12']], how='left', left_on='h1', right_on='a1')
     blkH_all = resultH[resultH['a12'] <= 4].drop(columns=['a1', 'a3', 'a12'])
 
-    resultI = pd.merge(blkI, blkA[['a1', 'a3', 'a12']], how='left', left_on='ai01', right_on='a1')
+    resultI = pd.merge(blkI, blkA[['a1', 'a3', 'a12']], how='left', left_on='i1', right_on='a1')
     blkI_all = resultI[resultI['a12'] <= 4].drop(columns=['a1', 'a3', 'a12'])
 
-    resultJ = pd.merge(blkJ, blkA[['a1', 'a3', 'a12']], how='left', left_on='aj01', right_on='a1')
+    resultJ = pd.merge(blkJ, blkA[['a1', 'a3', 'a12']], how='left', left_on='j1', right_on='a1')
     blkJ_all = resultJ[resultJ['a12'] <= 4].drop(columns=['a1', 'a3', 'a12'])
 
     del resultC, resultD, resultE, resultF, resultG, resultH, resultI, resultJ
 
     blkA_all = blkA[blkA['a12'] <= 4].copy()
 
-    # Fix district code by ensuring 2-digit format
+    # Fix codes by ensuring 2,3-digit format
 
-    blkA_all['a8'] = blkA_all['a8'].str.zfill(2)
+    blkA_all['a4'] = blkA_all['a4'].astype('str').str.zfill(4)
+    blkA_all['a5'] = blkA_all['a5'].astype('str').str.zfill(5)
+    blkA_all['a7'] = blkA_all['a7'].astype('str').str.zfill(2)
+    blkA_all['a8'] = blkA_all['a8'].astype('str').str.zfill(2)
+
+    multiplier['state'] = multiplier['state'].astype('str').str.zfill(2)
+    multiplier['distcode'] = multiplier['distcode'].astype('str').str.zfill(2)
+    multiplier['nic03'] = multiplier['nic03'].astype('str').str.zfill(3)
 
     # Incorporate "Other" for NIC 2,3 digit by changing column a5
     allowed_nic2dig = [1, 8] + list(range(10, 34)) + [38, 58]
@@ -104,12 +161,11 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
         except:
             return nic  # leave it unchanged if error
 
-
     # Merge Block A sample data with sscode to get sector ('bfe') and sscode (subsample code)
     resultA = pd.merge(blkA_all, sscode, how="left", left_on='a1', right_on='dsl')
 
-    # Create 'stratum' identifier by concatenating: sector (a7), district (a8), frame sector (bfe), and first 3
-    # digits of NIC code (a5)
+    # Create 'stratum' identifier by concatenating: state (a7), district (a8), sector (bfe),
+    # and first 3 digits of NIC code (a5)
     resultA['stratum'] = resultA['a7'] + resultA['a8'] + resultA['bfe'] + resultA['a5'].str[:3]
 
     # Drop intermediate columns no longer needed after stratum creation
@@ -126,7 +182,7 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
     # Merge sample data with relevant multiplier columns based on 'stratum'
     resultmult = pd.merge(
         resultA,
-        multiplier[['sstrm', 'mult1', 'mult2', 'mult3', 'mult4', 'stratum', 'cmult']],
+        multiplier[['sstrm', 'mult1', 'mult2', 'mult3', 'mult4', 'stratum']],
         how="left",
         left_on=['a3', 'stratum'],
         right_on=['sstrm', 'stratum']
@@ -145,188 +201,113 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
     # resultmult
     # resultmult.to_csv('resultmult',index=False)
 
-    # 1. No. of factories
+    # 1. V1 - Number of Factories (NF)
     resultmult['V1'] = resultmult['a11'] * resultmult['smult']
 
-    # 3. Fixed capital
-    # C vals
-    blkC_subset = blkC_all[(blkC_all['c_i1'] <= 9) & (blkC_all['c_i1'] != 8)].copy()[
-        ['ac01', 'c_i1', 'c_i5', 'c_i9', 'c_i13']]
-    resultC = blkC_subset.groupby('ac01').sum().reset_index()
-    result = pd.merge(resultmult, resultC, how="left", left_on='a1', right_on='ac01')
-    result = result.fillna(0)
+    # 3. V3 - Fixed Capital (FC)
+    result = merge_sum(resultmult, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 13, 'V3')
 
-    result['V3'] = (result['c_i13'] * result['smult']) / (10 ** 5)
-    result = result.drop(columns=['ac01'])
+    # 4. V4 - Physical Working Capital (PWC)
+    result = merge_sum(result, blkD_all, [1, 2, 3, 5, 6], 4, 'V4')
 
-    # 4. Physical Working Capital
-    # D vals
-    blkD_subset = blkD_all[(blkD_all['d_i1'] <= 6) & (blkD_all['d_i1'] != 4)].copy()[['ad01', 'd_i4']]
-    resultD = blkD_subset.groupby('ad01').sum().reset_index()
-    result = pd.merge(result, resultD, how="left", left_on='a1', right_on='ad01')
-    result = result.fillna(0)
-
-    result['V4'] = (result['d_i4'] * result['smult']) / (10 ** 5)
-    result = result.drop(columns=['ad01', 'd_i4'])
-
-    # 5. Working Capital
-    # D vals
-    blkD_subset = blkD_all[(blkD_all['d_i1'] >= 8) & (blkD_all['d_i1'] <= 10)].copy()[['ad01', 'd_i4']]
-    resultD = blkD_subset.groupby('ad01').sum().reset_index()
-    result = pd.merge(result, resultD, how="left", left_on='a1', right_on='ad01')
-    result = result.fillna(0)
-
-    result['D8910'] = result['d_i4'] * result['smult']
-    result = result.drop(columns=['ad01', 'd_i4'])
-
-    blkD_subset = blkD_all[(blkD_all['d_i1'] >= 12) & (blkD_all['d_i1'] <= 14)].copy()[['ad01', 'd_i4']]
-    resultD = blkD_subset.groupby('ad01').sum().reset_index()
-    result = pd.merge(result, resultD, how="left", left_on='a1', right_on='ad01')
-    result = result.fillna(0)
-
-    result['D121314'] = result['d_i4'] * result['smult']
-    result = result.drop(columns=['ad01', 'd_i4'])
-
-    result['V5'] = result['V4'] + (result['D8910'] - result['D121314']) / (10 ** 5)
+    # 5. V5 - Working Capital (WC)
+    result = merge_sum(result, blkD_all, [8, 9, 10], 4, 'D8910')
+    result = merge_sum(result, blkD_all, [12, 13, 14], 4, 'D121314')
+    result['V5'] = result['V4'] + result['D8910'] - result['D121314']
     result = result.drop(columns=['D8910', 'D121314'])
 
-    # 6. Invested Capital
+    # 6. V6 - Invested Capital (IC) = Fixed Capital + Physical Working Capital
     result['V6'] = result['V3'] + result['V4']
 
-    # 7. Gross Value of additions to fixed capital
-    result['V7'] = (result['c_i5'] * result['smult']) / (10 ** 5)
+    # 7. V7 - Gross Value of Additions to Fixed Capital (GVAFC)
+    result = merge_sum(result, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 5, 'V7')
 
-    # 8. Rent paid
-    # F vals
-    result = pd.merge(result, blkF_all, how="left", left_on='a1', right_on='af01')
-    result = result.fillna(0)
+    # 8. V8 - Rent Paid (RP)
+    result = merge_sum_cols(result, blkF_all, ['f9'], 'V8')
 
-    result['V8'] = (result['f9'] * result['smult']) / (10 ** 5)
+    # 9. V9 - Outstanding Loan (OL)
+    result = merge_sum(result, blkD_all, [17], 4, 'V9')
 
-    # 9. Outstanding Loan
-    blkD_subset = blkD_all[blkD_all['d_i1'] == 17].copy()[['ad01', 'd_i4']]
-    result = pd.merge(result, resultD, how="left", left_on='a1', right_on='ad01')
-    result = result.fillna(0)
+    # 10. V10 - Interest Paid (IP)
+    result = merge_sum_cols(result, blkF_all, ['f10'], 'V10')
 
-    result['V9'] = (result['d_i4'] * result['smult']) / (10 ** 5)
+    # 11. V11 - Rent Received (RR)
+    result = merge_sum_cols(result, blkG_all, ['g9'], 'V11')
 
-    # 10. Interest paid
-    result['V10'] = (result['f10'] * result['smult']) / (10 ** 5)
+    # 12. V12 - Interest Received (IR)
+    result = merge_sum_cols(result, blkG_all, ['g10'], 'V12')
 
-    # 11. Rent received
-    # G vals
-    result = pd.merge(result, blkG_all, how="left", left_on='a1', right_on='ag01')
-    result = result.fillna(0)
-    result['V11'] = (result['g9'] * result['smult']) / (10 ** 5)
+    # 13. V13 - Gross Value of Plant & Machinery (GVPM)
+    result = merge_sum(result, blkC_all, [3], 7, 'V13')
 
-    # 12. Interest received
-    result['V12'] = (result['g10'] * result['smult']) / (10 ** 5)
+    # 14. V14 - Value of Products & By-products (VPBP)
+    j_sno = list(set(blkJ_all.iloc[:, 1]) - {12})  # j1 != 12
+    result = merge_sum(result, blkJ_all, j_sno, 13, 'blkJ13')
+    result = merge_sum_cols(result, blkG_all, ['g4'], 'blkG4')
+    result = merge_sum_cols(result, blkG_all, ['g7'], 'blkG7')
+    result['V14'] = result['blkJ13'] + result['blkG4'] + result['blkG7']
+    result = result.drop(columns=['blkJ13', 'blkG4', 'blkG7'])
 
-    # 13. Gross value of P&M
-    blkC_subset = blkC_all[blkC_all['c_i1'] == 3].copy()[['ac01', 'c_i7']]
-    result = pd.merge(result, blkC_subset, how="left", left_on='a1', right_on='ac01')
-    result = result.fillna(0)
-    result['V13'] = (result['c_i7'] * result['smult']) / (10 ** 5)
+    # 15. V15 - Other Output (OO)
+    result = merge_sum_cols(result, blkG_all, ['g' + str(i) for i in [1, 2, 3, 6, 8, 11]], 'Gval')
+    result = merge_sum_cols(result, blkF_all, ['f7'], 'blkF7')
+    result['V15'] = result['Gval'] + result['blkF7']
+    result = result.drop(columns=['Gval', 'blkF7'])
 
-    # 14. Value of Products & By-products
-    # J vals
-    blkJ_subset = blkJ_all[blkJ_all['j_i1'] != 12].copy()[['aj01', 'j_i13']]
-    resultJ = blkJ_subset.groupby('aj01').sum().reset_index()
-    result = pd.merge(result, resultJ, how="left", left_on='a1', right_on='aj01')
-
-    result['V14'] = ((result['j_i13'] + result['g4'] + result['g7']) * result['smult']) / (10 ** 5)
-
-    # 15. Other Output
-
-    g_array = [1, 2, 3, 6, 8, 11]
-    g_vals = result['g' + str(g_array[0])]
-    for x in g_array[1:]:
-        g_vals += result['g' + str(x)]
-
-    result['V15'] = ((g_vals + result['f7']) * result['smult']) / (10 ** 5)
-
-    # 16. Total Output
-
+    # 16. V16 - Total Output (TO) = VPBP + OO
     result['V16'] = result['V14'] + result['V15']
 
-    # 17. Fuels consumed
-    # H vals
-    blkH_subset = blkH_all[(blkH_all['h_i1'] >= 16) & (blkH_all['h_i1'] <= 20)].copy()[['ah01', 'h_i6']]
-    resultH = blkH_subset.groupby('ah01').sum().reset_index()
-    result = pd.merge(result, resultH, how="left", left_on='a1', right_on='ah01')
-    result = result.fillna(0)
+    # 17. V17 - Fuels Consumed (FUEL)
+    result = merge_sum(result, blkH_all, [16, 17, 18, 19, 20], 6, 'V17')
 
-    result['V17'] = (result['h_i6'] * result['smult']) / (10 ** 5)
-    del result['h_i6']
+    # 18. V18 - Materials Consumed for Manufacturing (MCM)
+    h_sno = []
+    for x in list(set(blkH_all.iloc[:, 1])):
+        if x in [_ for _ in range(1, 12)] + [13, 14, 21] or x > 24:
+            h_sno.append(x)
+    result = merge_sum(result, blkH_all, h_sno, 6, 'blkH6')
 
-    # 18. Materials consumed for Manufacturing
+    i_sno = list(set(blkI_all.iloc[:, 1]) - {7})  # i1 != 7
+    result = merge_sum(result, blkI_all, i_sno, 6, 'blkI6')
 
-    # H vals
-    blkH_subset = \
-    blkH_all[(blkH_all['h_i1'].isin([_ for _ in range(1, 12)] + [13, 14, 21])) | (blkH_all['h_i1'] > 24)].copy()[
-        ['ah01', 'h_i6']]
-    resultH = blkH_subset.groupby('ah01').sum().reset_index()
-    result = pd.merge(result, resultH, how="left", left_on='a1', right_on='ah01')
+    result['V18'] = result['blkH6'] + result['blkI6']
+    result = result.drop(columns=['blkH6', 'blkI6'])
 
-    # I vals
-    blkI_subset = blkI_all[blkI_all['i_i1'] != 7].copy()[['ai01', 'i_i6']]
-    resultI = blkI_subset.groupby('ai01').sum().reset_index()
-    result = pd.merge(result, resultI, how="left", left_on='a1', right_on='ai01')
+    # 19. V19 - Other Input (OI)
+    result = merge_sum_cols(result, blkF_all, ['f' + str(i) for i in [1, "2a", "2b", 3, 4, 6, 7, 8, 11]], 'V19')
 
-    result = result.fillna(0)
-
-    result['V18'] = ((result['h_i6'] + result['i_i6']) * result['smult']) / (10 ** 5)
-
-    # 19. Other Input
-    f_array = [1, "2a", "2b", 3, 4, 6, 7, 8, 11]
-    f_vals = result['f' + str(f_array[0])]
-    for x in f_array[1:]:
-        f_vals += result['f' + str(x)]
-
-    result['V19'] = (f_vals * result['smult']) / (10 ** 5)
-
-    # 20. Total Input
-
+    # 20. V20 - Total Input (TI) = FUEL + MCM + OI
     result['V20'] = result['V17'] + result['V18'] + result['V19']
 
-    # 21. GVA
-
+    # 21. V21 - Gross Value Added (GVA) = TO - TI
     result['V21'] = result['V16'] - result['V20']
 
-    # 22. Depreciation
+    # 22. V22 - Depreciation (DEP)
+    result = merge_sum(result, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 9, 'V22')
 
-    result['V22'] = (result['c_i9'] * result['smult']) / (10 ** 5)
-
-    # 23. NVA
-
+    # 23. V23 - Net Value Added (NVA) = GVA - DEP
     result['V23'] = result['V21'] - result['V22']
 
-    # A. Employees and C11. Salary to Employees
-    # E vals
-    blkE_subset = blkE_all[blkE_all['e_i1'].isin([1, 2, 4, 6, 7])].copy()[['ae01', 'e_i6', 'e_i8']]
-    resultE = blkE_subset.groupby('ae01').sum().reset_index()
-    result = pd.merge(result, resultE, how="left", left_on='a1', right_on='ae01')
-    result = result.fillna(0)
-    result['VA'] = result['e_i6'] * result['smult']
-    result['VC11'] = (result['e_i8'] * result['smult']) / (10 ** 5)
-    result = result.drop(columns=['ae01', 'e_i6', 'e_i8'])
+    # VA - Number of Employees (NE)
+    result = merge_sum(result, blkE_all, [1, 2, 4, 6, 7], 6, 'VA', scale=1)
 
-    # A1. Workers and C111. Wage to Workers
-    # E vals
-    blkE_subset = blkE_all[blkE_all['e_i1'].isin([1, 2, 4])].copy()[['ae01', 'e_i6', 'e_i8']]
-    resultE = blkE_subset.groupby('ae01').sum().reset_index()
-    result = pd.merge(result, resultE, how="left", left_on='a1', right_on='ae01')
-    result = result.fillna(0)
-    result['VA1'] = result['e_i6'] * result['smult']
-    result['VC111'] = (result['e_i8'] * result['smult']) / (10 ** 5)
+    # VC11 - Salary of Employees (SE)
+    result = merge_sum(result, blkE_all, [1, 2, 4, 6, 7], 8, 'VC11')
+
+    # VA1 - Number of Workers (NW)
+    result = merge_sum(result, blkE_all, [1, 2, 4], 6, 'VA1', scale=1)
+
+    # VC111 - Wage to Workers (WTW)
+    result = merge_sum(result, blkE_all, [1, 2, 4], 8, 'VC111')
 
     result = result[['sscode', 'a1', 'a3', 'a5', 'a8', 'stratum', 'smult'] + params]
+    # result = result[['a3', 'a8'] + params]
 
     result['stratum'] = result['stratum'].apply(fix_nic_stratum)
     result['a5'] = result['a5'].apply(fix_nic_a5)
 
-    census_result = result[result['a3'] == '1'].copy()
-    sample_result = result[result['a3'] == '2'].copy()
+    census_result = result[result['a3'] == 1].copy()
+    sample_result = result[result['a3'] == 2].copy()
 
     # result.to_csv("result_smult.csv", index=False)
 
@@ -364,7 +345,6 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
         ['nic2dig'] + params]
     nic3dig_census = census_result.groupby('nic3dig').sum().reset_index()[
         ['nic3dig'] + params]
-
 
     dist_est_P, nic2dig_est_P, nic3dig_est_P, dist_est_C, nic2dig_est_C, nic3dig_est_C, dist_est_S, nic2dig_est_S, nic3dig_est_S = total_estimates(
         dist_full,
