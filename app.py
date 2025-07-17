@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import pandas as pd
-from script import processData
+from script import exportTables
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploaded_files'
@@ -9,7 +9,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Global vars
 blkA = blkB = blkC = blkD = blkE = blkF = blkG = blkH = blkI = blkJ = sscode = multiplier = None
-sel_n_total = cap_n_total = None
 
 
 @app.route('/')
@@ -20,7 +19,6 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     global blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, sscode, multiplier
-    global sel_n_total, cap_n_total
 
     uploaded_files = request.files.getlist("files[]")
     filenames = [
@@ -40,20 +38,21 @@ def upload():
 
     if all(fname in file_map for fname in filenames):
         try:
-            blkA = pd.read_csv(file_map['asi_a_v.CSV'], dtype=str)
-            blkB = pd.read_csv(file_map['asi_b_v.CSV'], dtype=str)
-            blkC = pd.read_csv(file_map['asi_c_v.CSV'], dtype=str)
-            blkD = pd.read_csv(file_map['asi_d_v.CSV'], dtype=str)
-            blkE = pd.read_csv(file_map['asi_e_v.CSV'], dtype=str)
-            blkF = pd.read_csv(file_map['asi_f_v.CSV'], dtype=str)
-            blkG = pd.read_csv(file_map['asi_g_v.CSV'], dtype=str)
-            blkH = pd.read_csv(file_map['asi_h_v.CSV'], dtype=str)
-            blkI = pd.read_csv(file_map['asi_i_v.CSV'], dtype=str)
-            blkJ = pd.read_csv(file_map['asi_j_v.CSV'], dtype=str)
-            sscode = pd.read_csv(file_map['sscode.CSV'], dtype=str)
-            multiplier = pd.read_csv(file_map['multiplier.CSV'], dtype=str)
+            blkA = pd.read_csv(file_map['asi_a_v.CSV'])
+            blkB = pd.read_csv(file_map['asi_b_v.CSV'])
+            blkC = pd.read_csv(file_map['asi_c_v.CSV'])
+            blkD = pd.read_csv(file_map['asi_d_v.CSV'])
+            blkE = pd.read_csv(file_map['asi_e_v.CSV'])
+            blkF = pd.read_csv(file_map['asi_f_v.CSV'])
+            blkG = pd.read_csv(file_map['asi_g_v.CSV'])
+            blkH = pd.read_csv(file_map['asi_h_v.CSV'])
+            blkI = pd.read_csv(file_map['asi_i_v.CSV'])
+            blkJ = pd.read_csv(file_map['asi_j_v.CSV'])
+            sscode = pd.read_csv(file_map['sscode.CSV'])
+            multiplier = pd.read_csv(file_map['multiplier.CSV'])
 
-            return processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, sscode, multiplier)
+            return exportTables(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, sscode, multiplier)
+
         except Exception as e:
             return jsonify({"error": e})
 
