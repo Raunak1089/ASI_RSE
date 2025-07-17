@@ -16,6 +16,7 @@ def addStateRSE(current_rse, state_rse):
 
 
 def addTotalRow(df):
+    # Iteratively adds a row at the end of a DataFrame containing the column sums
     df = pd.concat(
         [df, pd.DataFrame([['Total'] + [df[col].sum() for col in df.columns[1:]]], columns=df.columns)],
         ignore_index=True)
@@ -23,6 +24,7 @@ def addTotalRow(df):
 
 
 def addCenstoSamp(censusData, sampleData, onCol):
+    # Adds missing strata from census data into the sample data and merges values for consistent total estimation.
     for code in censusData[onCol]:
         if code not in sampleData[onCol].values:
             sampleData.loc[len(sampleData)] = [code] + [0 for _ in params]
@@ -196,6 +198,29 @@ def rse_estimates(state_full, dist_full, nic2dig_full, nic3dig_full):
 
 
 #   IMPORTANT FUNCTIONS TO REDUCE CODE
+
+def merge_sum(blockA, df, slno, col_no, Vname, scale=10 ** 5):
+    # Merges a block with aggregated sum of a selected column from another block, applies multiplier,
+    # and scales the result.
+    blk_subset = df[df[df.columns[1]].isin(slno)].copy()
+    result = blk_subset.groupby(df.columns[0]).sum().reset_index()
+    result = pd.merge(blockA, result, how="left", left_on='a1', right_on=df.columns[0])
+    result = result.fillna(0)
+    result[Vname] = (result[df.columns[col_no - 1]] * result['smult']) / scale
+    result = result.drop(columns=list(set(df.columns) & set(result.columns)))
+    return result
+
+
+def merge_sum_cols(blockA, df, col_names, Vname, scale=10 ** 5):
+    # Merges a block with aggregated sum of multiple specified columns from another block, applies multiplier,
+    # and scales the result.
+    result = pd.merge(blockA, df, how="left", left_on='a1', right_on=df.columns[0])
+    sum_col = pd.Series([0] * blockA.shape[0])
+    for colm in col_names:
+        sum_col += result[colm]
+    result[Vname] = (sum_col * result['smult']) / scale
+    result = result.drop(columns=list(set(df.columns) & set(result.columns)))
+    return result
 
 
 def getVarTable(Y_ism, parameter):
