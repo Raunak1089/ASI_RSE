@@ -2,8 +2,8 @@ from flask import jsonify
 import pandas as pd
 from sampleEstimates import total_estimates, rse_estimates, merge_sum, merge_sum_cols, getVarTable, getRSEestimates
 
-params = ['V1', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12',
-          'V13', 'V14', 'V16', 'V17', 'V18', 'V20', 'V21', 'V22', 'V23', 'VA', 'VC11', 'VA1', 'VC111']
+params = ['NF', 'FC', 'PWC', 'WC', 'IC', 'GVAFC', 'RentP', 'OL', 'IntrP', 'RentR', 'IntrR',
+         'GVPM', 'VPBP', 'TO', 'FUEL', 'MCM', 'TI', 'GVA', 'DEP', 'NVA', 'NE', 'SE', 'NW', 'WTW']
 
 
 def exportTables(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, sscode, multiplier):
@@ -56,7 +56,7 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
     if not expected_ss_cols.issubset(sscode.columns):
         raise Exception(f"SScode missing columns: {expected_ss_cols - set(sscode.columns)}")
 
-    # 5. All blocks except blkA must have DSLs ⊆ blkA
+    # 5. All blocks except blkA must have DSLs ? blkA
     dslA = set(blk_dict['blkA'].iloc[:, 2])
     for blk in blk_dict:
         if blk == 'blkA':
@@ -201,66 +201,66 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
     # resultmult
     # resultmult.to_csv('resultmult',index=False)
 
-    # 1. V1 - Number of Factories (NF)
-    resultmult['V1'] = resultmult['a11'] * resultmult['smult']
+    # 1. Number of Factories (NF)
+    resultmult['NF'] = resultmult['a11'] * resultmult['smult']
 
-    # 3. V3 - Fixed Capital (FC)
-    result = merge_sum(resultmult, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 13, 'V3')
+    # 3. Fixed Capital (FC)
+    result = merge_sum(resultmult, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 13, 'FC')
 
-    # 4. V4 - Physical Working Capital (PWC)
-    result = merge_sum(result, blkD_all, [1, 2, 3, 5, 6], 4, 'V4')
+    # 4. Physical Working Capital (PWC)
+    result = merge_sum(result, blkD_all, [1, 2, 3, 5, 6], 4, 'PWC')
 
-    # 5. V5 - Working Capital (WC)
+    # 5. Working Capital (WC)
     result = merge_sum(result, blkD_all, [8, 9, 10], 4, 'D8910')
     result = merge_sum(result, blkD_all, [12, 13, 14], 4, 'D121314')
-    result['V5'] = result['V4'] + result['D8910'] - result['D121314']
+    result['WC'] = result['PWC'] + result['D8910'] - result['D121314']
     result = result.drop(columns=['D8910', 'D121314'])
 
-    # 6. V6 - Invested Capital (IC) = Fixed Capital + Physical Working Capital
-    result['V6'] = result['V3'] + result['V4']
+    # 6. Invested Capital (IC) = FC + PWC
+    result['IC'] = result['FC'] + result['PWC']
 
-    # 7. V7 - Gross Value of Additions to Fixed Capital (GVAFC)
-    result = merge_sum(result, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 5, 'V7')
+    # 7. Gross Value of Additions to Fixed Capital (GVAFC)
+    result = merge_sum(result, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 5, 'GVAFC')
 
-    # 8. V8 - Rent Paid (RP)
-    result = merge_sum_cols(result, blkF_all, ['f9'], 'V8')
+    # 8. Rent Paid (RentP)
+    result = merge_sum_cols(result, blkF_all, ['f9'], 'RentP')
 
-    # 9. V9 - Outstanding Loan (OL)
-    result = merge_sum(result, blkD_all, [17], 4, 'V9')
+    # 9. Outstanding Loan (OL)
+    result = merge_sum(result, blkD_all, [17], 4, 'OL')
 
-    # 10. V10 - Interest Paid (IP)
-    result = merge_sum_cols(result, blkF_all, ['f10'], 'V10')
+    # 10. Interest Paid (IntrP)
+    result = merge_sum_cols(result, blkF_all, ['f10'], 'IntrP')
 
-    # 11. V11 - Rent Received (RR)
-    result = merge_sum_cols(result, blkG_all, ['g9'], 'V11')
+    # 11. Rent Received (RentR)
+    result = merge_sum_cols(result, blkG_all, ['g9'], 'RentR')
 
-    # 12. V12 - Interest Received (IR)
-    result = merge_sum_cols(result, blkG_all, ['g10'], 'V12')
+    # 12. Interest Received (IntrR)
+    result = merge_sum_cols(result, blkG_all, ['g10'], 'IntrR')
 
-    # 13. V13 - Gross Value of Plant & Machinery (GVPM)
-    result = merge_sum(result, blkC_all, [3], 7, 'V13')
+    # 13. Gross Value of Plant & Machinery (GVPM)
+    result = merge_sum(result, blkC_all, [3], 7, 'GVPM')
 
-    # 14. V14 - Value of Products & By-products (VPBP)
+    # 14. Value of Products & By-products (VPBP)
     j_sno = list(set(blkJ_all.iloc[:, 1]) - {12})  # j1 != 12
     result = merge_sum(result, blkJ_all, j_sno, 13, 'blkJ13')
     result = merge_sum_cols(result, blkG_all, ['g4'], 'blkG4')
     result = merge_sum_cols(result, blkG_all, ['g7'], 'blkG7')
-    result['V14'] = result['blkJ13'] + result['blkG4'] + result['blkG7']
+    result['VPBP'] = result['blkJ13'] + result['blkG4'] + result['blkG7']
     result = result.drop(columns=['blkJ13', 'blkG4', 'blkG7'])
 
-    # 15. V15 - Other Output (OO)
+    # 15. Other Output (OO)
     result = merge_sum_cols(result, blkG_all, ['g' + str(i) for i in [1, 2, 3, 6, 8, 11]], 'Gval')
     result = merge_sum_cols(result, blkF_all, ['f7'], 'blkF7')
-    result['V15'] = result['Gval'] + result['blkF7']
+    result['OO'] = result['Gval'] + result['blkF7']  # OO kept as intermediate calculation
     result = result.drop(columns=['Gval', 'blkF7'])
 
-    # 16. V16 - Total Output (TO) = VPBP + OO
-    result['V16'] = result['V14'] + result['V15']
+    # 16. Total Output (TO) = VPBP + OO
+    result['TO'] = result['VPBP'] + result['OO']
 
-    # 17. V17 - Fuels Consumed (FUEL)
-    result = merge_sum(result, blkH_all, [16, 17, 18, 19, 20], 6, 'V17')
+    # 17. Fuels Consumed (FUEL)
+    result = merge_sum(result, blkH_all, [16, 17, 18, 19, 20], 6, 'FUEL')
 
-    # 18. V18 - Materials Consumed for Manufacturing (MCM)
+    # 18. Materials Consumed for Manufacturing (MCM)
     h_sno = []
     for x in list(set(blkH_all.iloc[:, 1])):
         if x in [_ for _ in range(1, 12)] + [13, 14, 21] or x > 24:
@@ -270,35 +270,36 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
     i_sno = list(set(blkI_all.iloc[:, 1]) - {7})  # i1 != 7
     result = merge_sum(result, blkI_all, i_sno, 6, 'blkI6')
 
-    result['V18'] = result['blkH6'] + result['blkI6']
+    result['MCM'] = result['blkH6'] + result['blkI6']
     result = result.drop(columns=['blkH6', 'blkI6'])
 
-    # 19. V19 - Other Input (OI)
-    result = merge_sum_cols(result, blkF_all, ['f' + str(i) for i in [1, "2a", "2b", 3, 4, 6, 7, 8, 11]], 'V19')
+    # 19. Other Input (OI)
+    result = merge_sum_cols(result, blkF_all, ['f' + str(i) for i in [1, "2a", "2b", 3, 4, 6, 7, 8, 11]], 'OI')
 
-    # 20. V20 - Total Input (TI) = FUEL + MCM + OI
-    result['V20'] = result['V17'] + result['V18'] + result['V19']
+    # 20. Total Input (TI) = FUEL + MCM + OI
+    result['TI'] = result['FUEL'] + result['MCM'] + result['OI']
 
-    # 21. V21 - Gross Value Added (GVA) = TO - TI
-    result['V21'] = result['V16'] - result['V20']
+    # 21. Gross Value Added (GVA) = TO - TI
+    result['GVA'] = result['TO'] - result['TI']
 
-    # 22. V22 - Depreciation (DEP)
-    result = merge_sum(result, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 9, 'V22')
+    # 22. Depreciation (DEP)
+    result = merge_sum(result, blkC_all, [1, 2, 3, 4, 5, 6, 7, 9], 9, 'DEP')
 
-    # 23. V23 - Net Value Added (NVA) = GVA - DEP
-    result['V23'] = result['V21'] - result['V22']
+    # 23. Net Value Added (NVA) = GVA - DEP
+    result['NVA'] = result['GVA'] - result['DEP']
 
-    # VA - Number of Employees (NE)
-    result = merge_sum(result, blkE_all, [1, 2, 4, 6, 7], 6, 'VA', scale=1)
+    # Number of Employees (NE)
+    result = merge_sum(result, blkE_all, [1, 2, 4, 6, 7], 6, 'NE', scale=1)
 
-    # VC11 - Salary of Employees (SE)
-    result = merge_sum(result, blkE_all, [1, 2, 4, 6, 7], 8, 'VC11')
+    # Salary of Employees (SE)
+    result = merge_sum(result, blkE_all, [1, 2, 4, 6, 7], 8, 'SE')
 
-    # VA1 - Number of Workers (NW)
-    result = merge_sum(result, blkE_all, [1, 2, 4], 6, 'VA1', scale=1)
+    # Number of Workers (NW)
+    result = merge_sum(result, blkE_all, [1, 2, 4], 6, 'NW', scale=1)
 
-    # VC111 - Wage to Workers (WTW)
-    result = merge_sum(result, blkE_all, [1, 2, 4], 8, 'VC111')
+    # Wage to Workers (WTW)
+    result = merge_sum(result, blkE_all, [1, 2, 4], 8, 'WTW')
+
 
     result = result[['sscode', 'a1', 'a3', 'a5', 'a8', 'stratum', 'smult'] + params]
     # result = result[['a3', 'a8'] + params]
@@ -359,26 +360,23 @@ def processData(blkA, blkB, blkC, blkD, blkE, blkF, blkG, blkH, blkI, blkJ, ssco
         nic2dig_full,
         nic3dig_full)
 
-    new_params = ['NF', 'FC', 'PWC', 'WC', 'IC', 'GVAFC', 'RentP', 'OL', 'IntrP', 'RentR', 'IntrR',
-                  'GVPM', 'VPBP', 'TO', 'FUEL', 'MCM', 'TI', 'GVA', 'DEP', 'NVA', 'NE', 'SE', 'NW', 'WTW']
-
     return jsonify({
-        "dist_est_P": [dist_est_P.columns.tolist()[:1] + new_params] + dist_est_P.to_numpy().tolist(),
-        "nic2dig_est_P": [nic2dig_est_P.columns.tolist()[:1] + new_params] + nic2dig_est_P.to_numpy().tolist(),
-        "nic3dig_est_P": [nic3dig_est_P.columns.tolist()[:1] + new_params] + nic3dig_est_P.to_numpy().tolist(),
-        "dist_est_C": [dist_est_C.columns.tolist()[:1] + new_params] + dist_est_C.to_numpy().tolist(),
-        "nic2dig_est_C": [nic2dig_est_C.columns.tolist()[:1] + new_params] + nic2dig_est_C.to_numpy().tolist(),
-        "nic3dig_est_C": [nic3dig_est_C.columns.tolist()[:1] + new_params] + nic3dig_est_C.to_numpy().tolist(),
-        "dist_est_S": [dist_est_S.columns.tolist()[:1] + new_params] + dist_est_S.to_numpy().tolist(),
-        "nic2dig_est_S": [nic2dig_est_S.columns.tolist()[:1] + new_params] + nic2dig_est_S.to_numpy().tolist(),
-        "nic3dig_est_S": [nic3dig_est_S.columns.tolist()[:1] + new_params] + nic3dig_est_S.to_numpy().tolist(),
-        "dist_rse_P": [dist_rse_P.columns.tolist()[:1] + new_params] + dist_rse_P.to_numpy().tolist(),
-        "nic2dig_rse_P": [nic2dig_rse_P.columns.tolist()[:1] + new_params] + nic2dig_rse_P.to_numpy().tolist(),
-        "nic3dig_rse_P": [nic3dig_rse_P.columns.tolist()[:1] + new_params] + nic3dig_rse_P.to_numpy().tolist(),
-        "dist_rse_C": [dist_rse_C.columns.tolist()[:1] + new_params] + dist_rse_C.to_numpy().tolist(),
-        "nic2dig_rse_C": [nic2dig_rse_C.columns.tolist()[:1] + new_params] + nic2dig_rse_C.to_numpy().tolist(),
-        "nic3dig_rse_C": [nic3dig_rse_C.columns.tolist()[:1] + new_params] + nic3dig_rse_C.to_numpy().tolist(),
-        "dist_rse_S": [dist_rse_S.columns.tolist()[:1] + new_params] + dist_rse_S.to_numpy().tolist(),
-        "nic2dig_rse_S": [nic2dig_rse_S.columns.tolist()[:1] + new_params] + nic2dig_rse_S.to_numpy().tolist(),
-        "nic3dig_rse_S": [nic3dig_rse_S.columns.tolist()[:1] + new_params] + nic3dig_rse_S.to_numpy().tolist(),
+        "dist_est_P": [dist_est_P.columns.tolist()] + dist_est_P.to_numpy().tolist(),
+        "nic2dig_est_P": [nic2dig_est_P.columns.tolist()] + nic2dig_est_P.to_numpy().tolist(),
+        "nic3dig_est_P": [nic3dig_est_P.columns.tolist()] + nic3dig_est_P.to_numpy().tolist(),
+        "dist_est_C": [dist_est_C.columns.tolist()] + dist_est_C.to_numpy().tolist(),
+        "nic2dig_est_C": [nic2dig_est_C.columns.tolist()] + nic2dig_est_C.to_numpy().tolist(),
+        "nic3dig_est_C": [nic3dig_est_C.columns.tolist()] + nic3dig_est_C.to_numpy().tolist(),
+        "dist_est_S": [dist_est_S.columns.tolist()] + dist_est_S.to_numpy().tolist(),
+        "nic2dig_est_S": [nic2dig_est_S.columns.tolist()] + nic2dig_est_S.to_numpy().tolist(),
+        "nic3dig_est_S": [nic3dig_est_S.columns.tolist()] + nic3dig_est_S.to_numpy().tolist(),
+        "dist_rse_P": [dist_rse_P.columns.tolist()] + dist_rse_P.to_numpy().tolist(),
+        "nic2dig_rse_P": [nic2dig_rse_P.columns.tolist()] + nic2dig_rse_P.to_numpy().tolist(),
+        "nic3dig_rse_P": [nic3dig_rse_P.columns.tolist()] + nic3dig_rse_P.to_numpy().tolist(),
+        "dist_rse_C": [dist_rse_C.columns.tolist()] + dist_rse_C.to_numpy().tolist(),
+        "nic2dig_rse_C": [nic2dig_rse_C.columns.tolist()] + nic2dig_rse_C.to_numpy().tolist(),
+        "nic3dig_rse_C": [nic3dig_rse_C.columns.tolist()] + nic3dig_rse_C.to_numpy().tolist(),
+        "dist_rse_S": [dist_rse_S.columns.tolist()] + dist_rse_S.to_numpy().tolist(),
+        "nic2dig_rse_S": [nic2dig_rse_S.columns.tolist()] + nic2dig_rse_S.to_numpy().tolist(),
+        "nic3dig_rse_S": [nic3dig_rse_S.columns.tolist()] + nic3dig_rse_S.to_numpy().tolist()
     })
