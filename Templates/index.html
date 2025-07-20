@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" sizes="192x192" href="https://raunak1089.github.io/Required-files/favicon.ico">
+    <link rel="icon" sizes="192x192" href="https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/330px-Emblem_of_India.svg.png">
     <script src="https://raunak1089.github.io/all_scripts/fontawesome.js"></script>
     <meta charset="UTF-8">
     <title>ASI RSE Calculator</title>
@@ -266,9 +266,47 @@
             transform: translateY(0);
         }
 
+        #shutdown-btn {
+            position: fixed;
+            top: 1.3em;
+            right: 1.3em;
+            font-size: 2em;
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 0.05em 0.3em;
+            cursor: pointer;
+            overflow: hidden;
+            white-space: nowrap;
+            transition: width 0.3s ease, padding 0.3s ease;
+            width: 1.2em;
+            z-index: 1;
+        }
+
+        #shutdown-btn::after {
+            content: " Stop server";
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            margin-left: 0.3em;
+        }
+
+        #shutdown-btn:hover {
+            width: 8em;
+            padding: 0.05em 0.6em;
+            border-radius: 2em;
+        }
+
+        #shutdown-btn:hover::after {
+            opacity: 1;
+        }
+
+
     </style>
 </head>
 <body>
+
+<button id="shutdown-btn" title="Stop the server" onclick="shutdownServer()">×</button>
 
     <div class="header">
         <h2>ASI RSE Calculator</h2>
@@ -295,10 +333,10 @@
     </div>
 
     <div class="upload-container" id="uploadContainer">
-        <div class="dropzone" onclick="document.getElementById('fileInput').click();" 
-             ondragover="handleDragOver(event)" 
-             ondragenter="handleDragEnter(event)" 
-             ondragleave="handleDragLeave(event)" 
+        <div class="dropzone" onclick="document.getElementById('fileInput').click();"
+             ondragover="handleDragOver(event)"
+             ondragenter="handleDragEnter(event)"
+             ondragleave="handleDragLeave(event)"
              ondrop="handleFileDrop(event)">
             <i class="fa-light fa-cloud-arrow-up" style="font-size: 1.5em; margin: 0.5em;"></i>
             <div>Drop or select your .CSV files</div>
@@ -327,29 +365,29 @@
         document.querySelectorAll('.control-chamber').forEach(btn => {
             btn.addEventListener('click', function() {
                 const id = this.id;
-                
+
                 // Determine which group this button belongs to
                 if (['C', 'S', 'P'].includes(id)) {
                     // Scheme selection
-                    document.querySelectorAll('.control-panel:nth-child(3) .control-chamber').forEach(b => 
+                    document.querySelectorAll('.control-panel:nth-child(3) .control-chamber').forEach(b =>
                         b.classList.remove('selected'));
                     selectedScheme = id;
-                } 
+                }
                 else if (['dist', 'nic2dig', 'nic3dig'].includes(id)) {
                     // Level selection
-                    document.querySelectorAll('.control-panel:nth-child(1) .control-chamber').forEach(b => 
+                    document.querySelectorAll('.control-panel:nth-child(1) .control-chamber').forEach(b =>
                         b.classList.remove('selected'));
                     selectedLevel = id;
-                } 
+                }
                 else if (['est', 'rse'].includes(id)) {
                     // Stat selection
-                    document.querySelectorAll('.control-panel:nth-child(2) .control-chamber').forEach(b => 
+                    document.querySelectorAll('.control-panel:nth-child(2) .control-chamber').forEach(b =>
                         b.classList.remove('selected'));
                     selectedStat = id;
                 }
-                
+
                 this.classList.add('selected');
-                
+
                 if (resultJSON) {
                     showTable();
                 }
@@ -392,7 +430,7 @@
             fileList.innerHTML = '';
 
             // Filter for CSV files only
-            selectedFiles = Array.from(files).filter(file => 
+            selectedFiles = Array.from(files).filter(file =>
                 file.name.toLowerCase().endsWith('.csv')
             );
 
@@ -431,7 +469,7 @@
             xhr.upload.onprogress = function(e) {
                 if (e.lengthComputable) {
                     const percent = Math.round((e.loaded / e.total) * 100);
-                    uploadBtn.style.background = 
+                    uploadBtn.style.background =
                         `linear-gradient(to right, #08ca00 ${percent}%, #f2f7cb ${percent}%)`;
                 }
             };
@@ -443,7 +481,7 @@
 
                 if (xhr.status === 200 && JSON.parse(xhr.responseText)['error'] == undefined) {
                     resultJSON = JSON.parse(xhr.responseText);
-                    
+
                     // Hide upload area and show results with animation
                     document.getElementById('uploadContainer').classList.add('hidden');
                     // Show the control panels
@@ -451,7 +489,7 @@
                     setTimeout(() => {
                         document.getElementById('resultsContainer').style.bottom = '0';
                     }, 300);
-                    
+
                     showTable();
                 } else {
                     const err = JSON.parse(xhr.responseText);
@@ -485,7 +523,7 @@
         document.getElementById("downloadcsv").addEventListener("click", function() {
             let resultTable = selectedLevel + '_' + selectedStat + '_' + selectedScheme;
             if (!resultJSON || !resultJSON[resultTable]) {
-                document.getElementById("outputBox").innerHTML = 
+                document.getElementById("outputBox").innerHTML =
                     "<span style='color:red'>No result was found to download!</span>";
                 return;
             }
@@ -512,6 +550,21 @@
             htmlcode += '</table>';
 
             return htmlcode;
+        }
+
+
+        function shutdownServer() {
+            // First, delete uploaded_files folder
+            fetch('/delete_uploads', { method: 'POST' })
+                .then(() => {
+                    // Then shut down the server
+                    fetch('/shutdown', { method: 'POST' });
+                });
+
+            // Optional: close the window shortly after
+            setTimeout(() => {
+                window.close();
+            }, 500);
         }
 
     </script>
