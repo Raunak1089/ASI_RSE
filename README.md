@@ -1,4 +1,5 @@
 # RSE Calculator
+Download [EXE file here](https://drive.google.com/file/d/1VcUufd1B4fzI7wnp0CSFRtOfGUI02x6r/view?usp=sharing) to use the calculator on any platform without any python installation.
 
 A lightweight Flask-based application to compute Relative Standard Error (RSE) for industrial survey parameters. This project is tailored for use with ASI data and includes a simple GUI interface via the browser.
 
