@@ -1,10 +1,16 @@
 from flask import Flask, render_template, request, jsonify
 import os
+import sys
 import pandas as pd
 from script import exportTables
 
+import threading
+import webbrowser
+import time
+
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploaded_files'
+
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploaded_files')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Global vars
@@ -59,4 +65,84 @@ def upload():
     return jsonify({"error": "Missing required files"}), 400
 
 
-app.run()
+import shutil
+
+
+@app.route('/delete_uploads', methods=['POST'])
+def delete_uploads():
+    try:
+        if os.path.exists(UPLOAD_FOLDER):
+            shutil.rmtree(UPLOAD_FOLDER)
+            return jsonify({"status": "success", "message": "Upload folder deleted"})
+        else:
+            return jsonify({"status": "not_found", "message": "No such folder"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is not None:
+        func()
+        return 'Server shutting down...'
+    else:
+        # Fallback for when not using Werkzeug (e.g., PyInstaller .exe)
+        shutdown_html = """
+        <html><body>
+        <h2>Server stopped. Please close this tab.</h2>
+        <script>setTimeout(() => { window.close(); }, 1000);</script>
+        </body></html>
+        """
+        # Delay to let the browser get the response
+        threading.Timer(1.0, lambda: os._exit(0)).start()
+        return shutdown_html
+
+
+import tkinter as tk
+from PIL import Image, ImageTk
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for PyInstaller and dev """
+    try:
+        base_path = sys._MEIPASS  # PyInstaller sets this at runtime
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+def show_splash_screen():
+    splash = tk.Tk()
+    splash.overrideredirect(True)
+    splash.configure(background='white')
+
+    screen_width = splash.winfo_screenwidth()
+    screen_height = splash.winfo_screenheight()
+
+    # Load the image from bundled path
+    img_path = resource_path("splash_screen.png")
+    img = Image.open(img_path)
+    img = img.resize((384, 245))  # Resize as needed
+    photo = ImageTk.PhotoImage(img)
+
+    canvas = tk.Canvas(splash, width=384, height=245, highlightthickness=0, bg='white')
+    canvas.pack()
+    canvas.create_image(192, 122, image=photo)
+
+    x = (screen_width // 2) - 192
+    y = (screen_height // 2) - 122
+    splash.geometry(f"384x245+{x}+{y}")
+
+    splash.after(2500, splash.destroy)
+    splash.mainloop()
+
+
+def open_browser():
+    time.sleep(1)
+    webbrowser.open("http://127.0.0.1:5000/")
+
+
+if __name__ == "__main__":
+    show_splash_screen()
+    threading.Thread(target=open_browser).start()
+    app.run()
