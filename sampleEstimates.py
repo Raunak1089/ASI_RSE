@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 
-params = ['V1', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12',
-          'V13', 'V14', 'V16', 'V17', 'V18', 'V20', 'V21', 'V22', 'V23', 'VA', 'VC11', 'VA1', 'VC111']
+params = ['NF', 'FC', 'PWC', 'WC', 'IC', 'GVAFC', 'RentP', 'OL', 'IntrP', 'RentR', 'IntrR',
+          'GVPM', 'VPBP', 'TO', 'FUEL', 'MCM', 'TI', 'GVA', 'DEP', 'NVA', 'NE', 'SE', 'NW', 'WTW']
 
 
 # Calculate State RSE
